@@ -1,0 +1,16 @@
+# Local toolchain (static ffmpeg downloaded by tools/install_ffmpeg.sh)
+.tools/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Rendered output / scratch
+out/
+*.mp4
+*.wav
+.tmp/

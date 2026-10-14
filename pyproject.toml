@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "musicvid"
+version = "0.1.0"
+description = "Turn any song into a music video: audio-reactive bars, lyric typography, or beat-cut slideshows."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.22",
+    "pillow>=9.0",
+]
+
+[project.scripts]
+musicvid = "musicvid.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["musicvid", "musicvid.styles"]
+
+[tool.setuptools.package-data]
+musicvid = ["assets/fonts/*"]
