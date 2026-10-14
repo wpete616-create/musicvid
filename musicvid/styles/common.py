@@ -221,7 +221,7 @@ def title_block(ctx: RenderContext, canvas: np.ndarray, alpha: float = 1.0) -> N
 
 @functools.lru_cache(maxsize=8)
 def _cover_thumb(path: str, size: int, radius: float) -> np.ndarray:
-    with Image.open(path) as image:
+    with gfx.open_image(path) as image:
         square = gfx.fit_cover(image, size, size)
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle(

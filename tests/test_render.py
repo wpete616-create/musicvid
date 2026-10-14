@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import tempfile
@@ -12,9 +14,11 @@ import numpy as np
 
 from musicvid import audio
 from musicvid.cli import main
-from musicvid.styles.slideshow import cut_times
+from musicvid.styles.slideshow import HEIF_EXT, IMAGE_EXT, cut_times
 from musicvid.util import ffprobe
 from tests.support import click_track, solid_image, write_wav
+
+HEIF_ENABLED = bool(HEIF_EXT & IMAGE_EXT)
 
 LRC = "[ar:Test]\n[00:00.50]first line\n[00:02.00]second line\n[00:03.50]third line\n"
 
@@ -197,6 +201,69 @@ class RenderTest(unittest.TestCase):
         code = main(["make", str(self.song), "-o", str(self.root / "bad.mp4"),
                      "--config", str(bad), "--quiet"])
         self.assertEqual(code, 2)
+
+    def run_cli(self, name: str, *extra: str) -> tuple[int, str]:
+        """Run ``make`` and capture stderr so error text can be asserted."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            code = main([
+                "make", str(self.song), "-o", str(self.root / f"{name}.mp4"),
+                "--size", "320x180", "--fps", "12", *extra,
+            ])
+        return code, buffer.getvalue()
+
+    def test_corrupt_media_image_is_a_clean_error(self) -> None:
+        """A file Pillow cannot decode must be reported, not traced back."""
+        broken = self.root / "broken.jpg"
+        broken.write_bytes(b"this is not an image at all")
+        code, stderr = self.run_cli(
+            "badmedia", "--style", "slideshow", "--media", str(broken))
+        self.assertEqual(code, 2)
+        self.assertIn("musicvid:", stderr)
+        self.assertNotIn("Traceback", stderr)
+
+    def test_corrupt_cover_is_a_clean_error(self) -> None:
+        broken = self.root / "broken-cover.png"
+        broken.write_bytes(b"\x89PNG\r\n\x1a\n truncated garbage")
+        code, stderr = self.run_cli("badcover", "--cover", str(broken))
+        self.assertEqual(code, 2)
+        self.assertIn("musicvid:", stderr)
+        self.assertNotIn("Traceback", stderr)
+
+    def test_folder_without_usable_media_is_a_clean_error(self) -> None:
+        empty = self.root / "no-media"
+        empty.mkdir(exist_ok=True)
+        (empty / "notes.txt").write_text("not a photo", encoding="utf8")
+        code, stderr = self.run_cli(
+            "emptydir", "--style", "slideshow", "--media-dir", str(empty))
+        self.assertEqual(code, 2)
+        self.assertIn("musicvid:", stderr)
+
+    @unittest.skipIf(HEIF_ENABLED, "pillow-heif is installed: HEIC is supported")
+    def test_heic_without_the_plugin_is_a_clean_error(self) -> None:
+        """The plugin is optional, so the format must not be claimed blindly."""
+        self.assertNotIn(".heic", IMAGE_EXT)
+        photo = self.root / "photo.heic"
+        photo.write_bytes(b"\x00\x00\x00\x18ftypheic")
+        code, stderr = self.run_cli(
+            "heic", "--style", "slideshow", "--media", str(photo))
+        self.assertEqual(code, 2)
+        self.assertIn("pillow-heif", stderr)
+        self.assertIn("musicvid[heic]", stderr)
+        self.assertNotIn("Traceback", stderr)
+
+    def test_media_on_a_style_that_ignores_it_warns(self) -> None:
+        code, stderr = self.run_cli(
+            "ignored", "--style", "bars", "--media", str(self.shots[0]), "--end", "2")
+        self.assertEqual(code, 0)
+        self.assertIn("ignores --media", stderr)
+
+    def test_media_on_the_slideshow_does_not_warn(self) -> None:
+        code, stderr = self.run_cli(
+            "notignored", "--style", "slideshow", "--media", str(self.shots[0]),
+            "--cut-every", "4", "--end", "2")
+        self.assertEqual(code, 0)
+        self.assertNotIn("ignores --media", stderr)
 
     def test_analyze_command_reports_tempo(self) -> None:
         self.assertEqual(main(["analyze", str(self.song), "--json"]), 0)

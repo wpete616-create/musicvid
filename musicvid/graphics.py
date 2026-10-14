@@ -6,12 +6,16 @@ Frames are float32 ``(h, w, 3)`` arrays in 0..1. Text layers are float32
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import math
 from pathlib import Path
+from typing import Iterator
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import (
+    Image, ImageDraw, ImageFilter, ImageFont, ImageOps, UnidentifiedImageError,
+)
 
 from .util import MusicvidError, font_path
 
@@ -217,6 +221,34 @@ def fit_contain(image: Image.Image, width: int, height: int) -> tuple[Image.Imag
     return background, foreground
 
 
+@contextlib.contextmanager
+def open_image(path: str | Path) -> Iterator[Image.Image]:
+    """Open an image for reading, turning Pillow's failures into clear errors.
+
+    ``Image.open`` only reads the header, so the decode is forced here as well --
+    that is where corrupt and truncated files fail. Formats Pillow was built
+    without (HEIC unless ``pillow-heif`` is installed) raise
+    ``UnidentifiedImageError`` at the same place. Both become a user-facing
+    error instead of a traceback.
+    """
+    try:
+        with Image.open(path) as image:
+            image.load()
+            yield image
+    except Image.DecompressionBombError as exc:
+        raise MusicvidError(
+            f"Image {path} is too large for Pillow to decode safely."
+        ) from exc
+    except OSError as exc:
+        if isinstance(exc, UnidentifiedImageError):
+            raise MusicvidError(
+                f"Unsupported or corrupt image: {path}. Pillow cannot decode it; "
+                "convert it to JPEG or PNG (HEIC/HEIF needs the optional "
+                "pillow-heif)."
+            ) from exc
+        raise MusicvidError(f"Could not read image {path}: {exc}") from exc
+
+
 def load_background(cover: str | Path | None, width: int, height: int,
                     palette: dict) -> np.ndarray:
     """Base canvas: gradient, plus a blurred cover-art wash when supplied."""
@@ -228,7 +260,7 @@ def load_background(cover: str | Path | None, width: int, height: int,
         path = Path(cover).expanduser()
         if not path.exists():
             raise MusicvidError(f"Cover image not found: {cover}")
-        with Image.open(path) as image:
+        with open_image(path) as image:
             wash = fit_cover(image, width, height)
         wash = wash.filter(ImageFilter.GaussianBlur(float(palette["cover_blur"])))
         wash_arr = np.asarray(wash, np.float32) / 255.0

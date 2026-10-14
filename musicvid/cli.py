@@ -17,7 +17,7 @@ from . import graphics as gfx
 from . import lyrics as lyrics_mod
 from .encode import FrameWriter
 from .graphics import TextRenderer
-from .styles import DESCRIPTIONS, get_style, style_names
+from .styles import DESCRIPTIONS, get_style, style_names, style_requires_media
 from .styles.common import RenderContext
 from .styles.slideshow import collect_media
 from .util import (
@@ -233,6 +233,13 @@ def cmd_make(args) -> int:
     if cfg.get("start") is not None and cfg.get("end") is not None:
         if float(cfg["end"]) <= float(cfg["start"]):
             raise MusicvidError("--end must be later than --start.")
+
+    if (cfg.get("media") or cfg.get("media_dir")) and not style_requires_media(style):
+        log(
+            f"  note: the {style!r} style ignores --media/--media-dir; only the "
+            f"slideshow style shows them (try --preset cut or --style slideshow).",
+            quiet=quiet,
+        )
 
     log(f"Analysing {song.name} ...", quiet=quiet)
     started = time.time()

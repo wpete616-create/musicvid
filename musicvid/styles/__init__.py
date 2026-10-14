@@ -22,11 +22,23 @@ DESCRIPTIONS = {
     slideshow.NAME: slideshow.DESCRIPTION,
 }
 
-__all__ = ["REGISTRY", "DESCRIPTIONS", "RenderContext", "get_style", "style_names"]
+# Which styles consume --media/--media-dir; the other ones ignore them.
+REQUIRES_MEDIA = {
+    bars.NAME: bars.REQUIRES_MEDIA,
+    lyrics.NAME: lyrics.REQUIRES_MEDIA,
+    slideshow.NAME: slideshow.REQUIRES_MEDIA,
+}
+
+__all__ = ["REGISTRY", "DESCRIPTIONS", "REQUIRES_MEDIA", "RenderContext",
+           "get_style", "style_names", "style_requires_media"]
 
 
 def style_names() -> list[str]:
     return sorted(REGISTRY)
+
+
+def style_requires_media(name: str) -> bool:
+    return bool(REQUIRES_MEDIA.get(name, False))
 
 
 def get_style(name: str) -> Callable[[RenderContext], Iterator[np.ndarray]]:

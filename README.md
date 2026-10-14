@@ -20,7 +20,8 @@ and per-band energy, so cuts, pulses and highlights land on the music.
 ## Install
 
 ```bash
-pip install -e .          # needs Python 3.9+, installs numpy + pillow
+pip install -e .                        # needs Python 3.9+, installs numpy + pillow
+pip install -e '.[heic]'                # optional: read HEIC/HEIF photos (Python 3.10+)
 ```
 
 You also need **ffmpeg** on your `PATH` (`apt install ffmpeg`, `brew install ffmpeg`, …).
@@ -88,6 +89,11 @@ built-in looks: `neon`, `clean`, `ember`, `mono`, `vapor`, `lyric`, `karaoke`,
 `--cut-on downbeats|beats`, `--transition` seconds (`0` = hard cut), `--zoom`
 (Ken Burns amount), `--fit cover|contain`, `--flash`, `--shuffle`.
 
+Images can be `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tif`/`.tiff` (plus
+`.heic`/`.heif` with the `heic` extra) and clips `.mp4`, `.mov`, `.mkv`, `.webm`,
+`.avi`, `.m4v`, `.mpg`, `.mpeg`. `--media` and `--media-dir` belong to this style:
+the other two say so and ignore them, rather than silently rendering nothing.
+
 Lyrics come from a `.lrc` or `.srt` file — normally `<song>.lrc` next to the
 audio. Word-level karaoke needs enhanced LRC timings
 (`[00:12.00]<00:12.00>Hello <00:12.50>world`). **musicvid does not transcribe
@@ -126,8 +132,9 @@ python -m unittest discover -t . -s tests       # or: pytest tests -q
 The suite synthesises its own audio (click tracks at known tempos, tones for the
 band placement) and checks tempo accuracy, beat-to-grid alignment, downbeat
 spacing, LRC/SRT parsing, trimming, config round-trips, and renders every style
-end to end — including A/B checks that overlays are actually drawn and that
-frames change with the music.
+end to end — including A/B checks that overlays are actually drawn, that frames
+change with the music, and that unreadable media fail with a clear message
+instead of a traceback.
 
 ## Limitations
 
@@ -139,3 +146,8 @@ frames change with the music.
   beat off. `musicvid analyze` shows what it decided.
 - Bundled DejaVu fonts ship for consistent text rendering; see
   `musicvid/assets/fonts/LICENSE.txt`.
+
+## License
+
+MIT — see `LICENSE`. The bundled DejaVu fonts keep their own license
+(`musicvid/assets/fonts/LICENSE.txt`).

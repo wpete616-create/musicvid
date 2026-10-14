@@ -23,8 +23,20 @@ NAME = "slideshow"
 DESCRIPTION = "Photos and clips cut on the beat, with Ken Burns motion and transitions."
 REQUIRES_MEDIA = True
 
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+HEIF_EXT = {".heic", ".heif"}
 VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".mpg", ".mpeg"}
+
+# Pillow alone cannot decode HEIC/HEIF, so those extensions are accepted only
+# when the optional pillow-heif plugin is installed -- the tool never advertises
+# a format it cannot actually read.
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    IMAGE_EXT |= HEIF_EXT
+except ImportError:                                # pragma: no cover - optional
+    pass
 
 
 @dataclass
@@ -46,7 +58,10 @@ def collect_media(cfg: dict, seed: int = 0) -> list[Media]:
         if not path.exists():
             raise MusicvidError(f"Media not found: {item}")
         if path.is_dir():
-            paths.extend(_dir_media(path))
+            found = _dir_media(path)
+            if not found:
+                raise MusicvidError(_empty_folder_message(path))
+            paths.extend(found)
         else:
             paths.append(path)
 
@@ -54,7 +69,10 @@ def collect_media(cfg: dict, seed: int = 0) -> list[Media]:
         directory = Path(str(cfg["media_dir"])).expanduser()
         if not directory.is_dir():
             raise MusicvidError(f"--media-dir is not a directory: {directory}")
-        paths.extend(_dir_media(directory))
+        found = _dir_media(directory)
+        if not found:
+            raise MusicvidError(_empty_folder_message(directory))
+        paths.extend(found)
 
     if not paths and cfg.get("cover"):
         paths.append(Path(str(cfg["cover"])).expanduser())
@@ -74,8 +92,7 @@ def collect_media(cfg: dict, seed: int = 0) -> list[Media]:
             items.append(Media(str(path), "video"))
         else:
             raise MusicvidError(
-                f"Unsupported media type: {path.name} (images: "
-                f"{', '.join(sorted(IMAGE_EXT))}; video: {', '.join(sorted(VIDEO_EXT))})"
+                f"Unsupported media type: {path.name}. {_supported_hint(suffix)}"
             )
 
     if cfg.get("shuffle"):
@@ -90,6 +107,26 @@ def _dir_media(directory: Path) -> list[Path]:
          if path.is_file() and path.suffix.lower() in allowed),
         key=lambda path: path.name.lower(),
     )
+
+
+def _supported_hint(suffix: str = "") -> str:
+    """Describe the accepted formats, calling out HEIC/HEIF when relevant."""
+    listed = (f"images: {', '.join(sorted(IMAGE_EXT))}; "
+              f"video: {', '.join(sorted(VIDEO_EXT))}")
+    if suffix in HEIF_EXT:
+        return (f"HEIC/HEIF needs the optional pillow-heif plugin "
+                f"(`pip install 'musicvid[heic]'`). Supported {listed}.")
+    return f"Supported {listed}."
+
+
+def _empty_folder_message(directory: Path) -> str:
+    message = f"No usable media in {directory}. {_supported_hint()}"
+    heif = sorted(entry.name for entry in directory.iterdir()
+                  if entry.suffix.lower() in HEIF_EXT)
+    if heif:
+        message += (f" It holds {len(heif)} HEIC/HEIF file(s) (e.g. {heif[0]}), which "
+                    "need the optional pillow-heif plugin: pip install 'musicvid[heic]'.")
+    return message
 
 
 def cut_times(analysis: Analysis, cfg: dict, min_segment: float = 0.7) -> np.ndarray:
@@ -113,8 +150,7 @@ def cut_times(analysis: Analysis, cfg: dict, min_segment: float = 0.7) -> np.nda
 
 
 def _prepare_image(path: str, size: tuple[int, int], fit: str) -> Image.Image:
-    with Image.open(path) as image:
-        image.load()
+    with gfx.open_image(path) as image:
         if fit == "contain":
             background, foreground = gfx.fit_contain(image, size[0], size[1])
             x = (size[0] - foreground.width) // 2
@@ -212,7 +248,7 @@ def render(ctx: RenderContext) -> Iterator[np.ndarray]:
             direction = 1 if segment_index % 2 == 0 else -1
             if item.kind == "video":
                 frame_index = int(min(max(0.0, local) * fps, len(item.frames) - 1))
-                with Image.open(item.frames[frame_index]) as frame:
+                with gfx.open_image(item.frames[frame_index]) as frame:
                     return np.asarray(frame.convert("RGB"), np.float32) / 255.0
             cached = prepared.get(media_index)
             if cached is None:

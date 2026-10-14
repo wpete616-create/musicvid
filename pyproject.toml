@@ -9,6 +9,15 @@ description = "Turn any song into a music video: audio-reactive bars, lyric typo
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+keywords = ["music video", "visualizer", "audio analysis", "beat detection", "ffmpeg"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Video",
+]
 dependencies = [
     "numpy>=1.22",
     "pillow>=9.0",
@@ -19,6 +28,7 @@ musicvid = "musicvid.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+heic = ["pillow-heif"]        # HEIC/HEIF photos in the slideshow; needs Python 3.10+
 
 [tool.setuptools]
 packages = ["musicvid", "musicvid.styles"]
